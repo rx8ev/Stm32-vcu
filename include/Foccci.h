@@ -19,34 +19,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef Foccci_h
+#define Foccci_h
 
-#include "vehicle.h"
-#include "shifter.h"
-#include "canhardware.h"
-#include "errormessage.h"
+/*  This library supports the Foccci
+https://github.com/uhi22/foccci
+https://github.com/uhi22/ccs32clara
+	2024 - Tom de Bree
+*/
 
-namespace utils
+#include <stdint.h>
+#include "my_fp.h"
+#include "params.h"
+#include "stm32_can.h"
+#include "chargerint.h"
+#include "my_math.h"
+
+#define NODEID 22
+
+class FoccciClass: public Chargerint
 {
-    inline int32_t change(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
-    {
-        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-    }
 
-    float GetUserThrottleCommand(CanHardware*);
-    float ProcessThrottle(int);
-    float ProcessUdc(int);
-    void CalcSOC();
-    void GetDigInputs(CanHardware*);
-    void PostErrorIfRunning(ERROR_MESSAGE_NUM);
-    void SelectDirection(Vehicle* , Shifter*);
-    void displayThrottle();
-    void ProcessCruiseControlButtons();
-    void CpSpoofOutput();
-    void SpeedoSet(uint16_t speed);
-    void SpeedoStart();
-    void GS450hOilPump(uint16_t pumpdc);
-}
+public:
+      void SetCanInterface(CanHardware* c);
+      void DecodeCAN(int id, uint32_t data[2]);
+      void Task10Ms();
+      void Task100Ms();
+      void Task200Ms();
+      void ConfigCan();
+      bool DCFCRequest(bool RunCh);
+      bool ACRequest(bool RunCh);
+      void CCS_Pwr_Con();
 
-#endif
+private:
+static void handle357(uint32_t data[2]);
+static void handle109(uint32_t data[2]);
+static void handle596(uint32_t data[2]);
+static void Chg_Timers();
+};
+
+#endif /* CPC_h */

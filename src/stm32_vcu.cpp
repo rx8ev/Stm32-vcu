@@ -20,6 +20,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <stdint.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/timer.h>
@@ -91,7 +92,7 @@
 #include "JLR_G2.h"
 #include "no_Lever.h"
 #include "CPC.h"
-#include "Focci.h"
+#include "Foccci.h"
 #include "NoInverter.h"
 #include "linbus.h"
 #include "VWheater.h"
@@ -122,7 +123,7 @@ static CanHardware* canInterface[3];
 static CanMap* canMap;
 static ChargeModes targetCharger;
 static ChargeInterfaces targetChgint;
-static uint8_t ChgSet;
+static uint8_t ChgSet;  // Temp variable storing Param::Chgctrl. 0=enable, 1=disable, 2=timer.
 static bool RunChg;
 static uint8_t ChgHrs_tmp;
 static uint8_t ChgMins_tmp;
@@ -161,7 +162,7 @@ static outlanderCharger outChg;
 static FCChademo chademoFC;
 static i3LIMClass LIMFC;
 static CPCClass CPCcan;
-static FocciClass Foccican;
+static FoccciClass Focccican;
 static Can_OI openInv;
 static NoInverterClass NoInverter;
 static OutlanderInverter outlanderInv;
@@ -249,13 +250,11 @@ static void Ms200Task(void)
     if(Param::GetInt(Param::GPA1Func) == IOMatrix::PILOT_PROX || Param::GetInt(Param::GPA2Func) == IOMatrix::PILOT_PROX )
     {
         int ppThresh = Param::GetInt(Param::ppthresh);
-
         int ppValue = IOMatrix::GetAnaloguePin(IOMatrix::PILOT_PROX)->Get();
         Param::SetInt(Param::PPVal, ppValue);
 
-
-        //if PP is less than threshold and currently disabled and not already finished
-        if (ppValue < ppThresh && ChgSet==1 && !ChgLck)
+        // If PP is at or below threshold and currently disabled and not already finished
+        if (ppValue <= ppThresh && ChgSet==1 && !ChgLck)
         {
             RunChg=true;
         }
@@ -280,7 +279,7 @@ static void Ms200Task(void)
     //in chademo , we do not want to run the 200ms task unless in dc charge mode
     if(targetChgint == ChargeInterfaces::Chademo && chargeModeDC) selectedChargeInt->Task200Ms();
     //In case of the LIM we want to send it all the time if lim in use
-    if((targetChgint == ChargeInterfaces::i3LIM) || (targetChgint == ChargeInterfaces::Unused) || (targetChgint == ChargeInterfaces::CPC)|| (targetChgint == ChargeInterfaces::Focci)) selectedChargeInt->Task200Ms();
+    if((targetChgint == ChargeInterfaces::i3LIM) || (targetChgint == ChargeInterfaces::Unused) || (targetChgint == ChargeInterfaces::CPC)|| (targetChgint == ChargeInterfaces::Foccci)) selectedChargeInt->Task200Ms();
     //and just to be thorough ...
     if(targetChgint == ChargeInterfaces::Unused) selectedChargeInt->Task200Ms();
 
@@ -421,7 +420,7 @@ static void Ms100Task(void)
     int32_t IsaTemp=ISA::Temperature;
     Param::SetInt(Param::tmpaux,IsaTemp);
 
-    if(targetChgint == ChargeInterfaces::i3LIM || targetChgint == ChargeInterfaces::Focci || chargeModeDC) selectedChargeInt->Task100Ms();// send the 100ms task request for the lim all the time and for others if in DC charge mode
+    if(targetChgint == ChargeInterfaces::i3LIM || targetChgint == ChargeInterfaces::Foccci || chargeModeDC) selectedChargeInt->Task100Ms();// send the 100ms task request for the lim all the time and for others if in DC charge mode
 
     if(selectedChargeInt->DCFCRequest(RunChg))//Request to run dc fast charge
     {
@@ -555,7 +554,6 @@ static void Ms10Task(void)
 
     if(Param::GetInt(Param::potnom) < Param::GetInt(Param::RegenBrakeLight))
     {
-        Param::SetInt(Param::BrkVacVal,torquePercent*requestedDirection*-1);
         //enable Brake Light Ouput
         IOMatrix::GetPin(IOMatrix::BRAKELIGHT)->Set();
     }
@@ -578,7 +576,14 @@ static void Ms10Task(void)
     selectedVehicle->Task10Ms();
     selectedDCDC->Task10Ms();
     selectedShifter->Task10Ms();
-    if(opmode==MOD_CHARGE) selectedCharger->Task10Ms();
+    if(opmode==MOD_CHARGE)
+    {
+        selectedCharger->Task10Ms();
+    }
+    else if (Param::GetInt(Param::chargemodes) == ChargeModes::Leaf_PDM)
+    {
+        selectedCharger->Task10Ms();
+    }
     if(opmode==MOD_RUN) Param::SetInt(Param::canctr, (Param::GetInt(Param::canctr) + 1) & 0xF);//Update the OI can counter in RUN mode only
 
     //////////////////////////////////////////////////
@@ -861,8 +866,8 @@ static void UpdateChargeInt()
     case ChargeInterfaces::CPC:
         selectedChargeInt = &CPCcan;
         break;
-    case ChargeInterfaces::Focci:
-        selectedChargeInt = &Foccican;
+    case ChargeInterfaces::Foccci:
+        selectedChargeInt = &Focccican;
         break;
     }
     //This will call SetCanFilters() via the Clear Callback
