@@ -19,11 +19,16 @@ public:
    void SetRevCounter(int speed) { revCounter = speed; }
    void SetTemperatureGauge(float temp) { temperature = temp; }
    bool Ready();
-   bool Start(); 
+   bool Start();
    void Task100Ms();
+   void Task200Ms();
    void DecodeCAN(int, uint32_t* data);
-   void handle47(uint32_t data[2]);
-   void handle4B1(uint32_t data[2]);
+   void handleImmobiliserMsg(uint32_t data[2]);
+   void handleWheelSpeedMsg(uint32_t data[2]);
+   void SetFuelGauge(float level);
+   void updateDSC();
+   void updateMIL();
+   void updatePCM();
 
 private:
    bool checkEngineMIL;
@@ -47,7 +52,7 @@ private:
    uint16_t rearLeft;
    uint16_t rearRight;
    int revCounter;
-   float temperature;   
+   float temperature;
 };
 
 #endif /* MAZDA_RX8_H */
