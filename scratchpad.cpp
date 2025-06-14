@@ -38,7 +38,7 @@ switch (opmode)
       }
       Param::SetInt(Param::opmode, opmode);
    break;
-   
+
    case MOD_PECHARGE:
       if (!chargeMode)
       {
@@ -58,7 +58,7 @@ switch (opmode)
       }
       if(initbyCharge && !chargeMode) opmode = MOD_OFF;// These two statements catch a precharge hang from either start mode or run mode.
       if(initbyStart && !selectedVehicle->Ready()) opmode = MOD_OFF;
-      if (udc < (udcsw) && rtc_get_counter_val() > (vehicleStartTime + PRECHARGE_TIMEOUT))
+      if (udc < (udcsw) && rtc_get_counter_val() > (vehicleStartTime + Param::GetInt(Param::PrechargeTimeout)))
       {
          DigIo::prec_out.Clear();
          ErrorMessage::Post(ERR_PRECHARGE);
@@ -66,20 +66,20 @@ switch (opmode)
       }
       Param::SetInt(Param::opmode, opmode);
    break;
-   
+
    case MOD_PCHFAIL:
       StartSig=false
       opmode = MOD_OFF;
       Param::SetInt(Param::opmode, opmode);
    break;
-   
+
    case MOD_CHARGE:
       DigIo::dcsw_out.Set();
       ErrorMessage::UnpostAll();
       if(!chargeMode) opmode = MOD_OFF;
       Param::SetInt(Param::opmode, opmode);
    break;
-   
+
    case MOD_RUN:
       DigIo::dcsw_out.Set();
       Param::SetInt(Param::opmode, MOD_RUN);
@@ -87,6 +87,6 @@ switch (opmode)
       if(!selectedVehicle->Ready()) opmode = MOD_OFF;
       Param::SetInt(Param::opmode, opmode);
    break;
-   
-   
+
+
    }

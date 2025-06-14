@@ -367,7 +367,7 @@ float ProcessUdc(int motorSpeed)
     /*
        if(opmode == MOD_PRECHARGE)
        {
-          if (udc < (udcsw) && rtc_get_counter_val() > (oldTime + PRECHARGE_TIMEOUT) && DigIo::prec_out.Get())
+          if (udc < (udcsw) && rtc_get_counter_val() > (oldTime + Param::GetInt(Param::PrechargeTimeout)) && DigIo::prec_out.Get())
           {
              DigIo::prec_out.Clear();
              ErrorMessage::Post(ERR_PRECHARGE);

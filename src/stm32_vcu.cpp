@@ -105,8 +105,6 @@
 #include "OutlanderHeartBeat.h"
 #include "MAZDA_RX8.h"
 
-#define PRECHARGE_TIMEOUT 5  //5s
-
 #define PRINT_JSON 0
 
 
@@ -667,7 +665,7 @@ static void Ms10Task(void)
         }
         if(initbyCharge && !chargeMode) opmode = MOD_OFF;// These two statements catch a precharge hang from either start mode or run mode.
         if(initbyStart && !selectedVehicle->Ready()) opmode = MOD_OFF;
-        if (udc < (Param::GetInt(Param::udcsw)) && rtc_get_counter_val() > (vehicleStartTime + PRECHARGE_TIMEOUT))
+        if (udc < (Param::GetInt(Param::udcsw)) && rtc_get_counter_val() > (vehicleStartTime + Param::GetInt(Param::PrechargeTimeout)))
         {
             DigIo::prec_out.Clear();
             ErrorMessage::Post(ERR_PRECHARGE);
