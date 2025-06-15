@@ -39,6 +39,8 @@ uint16_t rearLeft = 0;
 uint16_t rearRight = 0;
 
 #define WHEEL_CAN_ID 0x4B0
+//The ODO is updated by relaying data from 0x4c0 to 0x420
+#define ODOMETER_CAN_ID 0x4C0 // for the odometer
 #define IMMOBILISER_CAN_ID 0x47
 
 bool MAZDA_RX8::Ready()
@@ -75,6 +77,10 @@ void MAZDA_RX8::DecodeCAN(int id, uint32_t* data)
 
     case WHEEL_CAN_ID:
         MAZDA_RX8::handleWheelSpeedMsg(data);
+        break;
+
+    case ODOMETER_CAN_ID:
+        odo = ((uint8_t*)data)[0]; //Read the ODO from the 0x4C0 message
         break;
 
     default:
@@ -145,128 +151,17 @@ void MAZDA_RX8::handleWheelSpeedMsg(uint32_t data[2]) //Read wheel speeds to upd
     }
 }
 
-void MAZDA_RX8::Task100Ms() //Send CAN messages on Various ID's
+void MAZDA_RX8::Task100Ms()     // Send CAN messages on Various ID's
 {
+    //static messages relating to traction control, abs etc
+    // for the RX8 not to complain.
+    sendTractionControlMessages();
 
-    //What goes here?
+    // MIL Management Information Light
+    updateMIL();
 
-}
-
-void MAZDA_RX8::Task200Ms()     // Send CAN messages on Various ID's
-{
-    engineRPM = Param::GetInt(Param::speed)*3.85;
-    throttlePedal = Param::GetInt(Param::potnom)*2;
-
-    float current = Param::GetFloat(Param::idc);
-    if (current < 50){
-        engineRPM = 1000;
-      }else{
-        engineRPM = current*20;
-      }
-
-    uint8_t bytes[8];
-    // if(engineRPM < 3850)
-    // {
-    // bytes[0]=0x0F;    //RPM high byte Motor RPM*3.85
-    // bytes[1]=0x0A;    //RPM low byte
-    // }
-    // else {
-    bytes[0]=engineRPM >> 8;
-    bytes[1]=engineRPM;
-    // }
-    bytes[2]=0xFF;    //
-    bytes[3]=0xFF;    //
-    bytes[4]= vehicleSpeed >> 8; //0x13;    //Vehicle speed high byte
-    bytes[5]= vehicleSpeed;      //0x88;    //Vehicle speed low byte
-    bytes[6]= throttlePedal;    //
-    bytes[7]=0xFF;    //
-
-    can->Send(0x201, (uint32_t*)bytes,8); //Send on CAN2
-    // 0x201 = {0, 0, 255, 255, 0, 0, 0, 255}
-
-//Setup PCM Status's required to fool all other CAN devices that everything is OK, just send these out continuously
-
-    bytes[0]=0x13;    //Static values work fine here
-    bytes[1]=0x13;    //
-    bytes[2]=0x13;    //
-    bytes[3]=0x13;    //
-    bytes[4]=0xAF;    //
-    bytes[5]=0x03;    //
-    bytes[6]=0x13;    //
-
-    can->Send(0x203, (uint32_t*)bytes,7); //Send on CAN2
-    // 0x203 = {19,19,19,19,175,3,19}
-
-//data to do with traction control
-
-    bytes[0]=0x02;    //Static values work fine here
-    bytes[1]=0x2D;    //
-    bytes[2]=0x02;    //
-    bytes[3]=0x2D;    //
-    bytes[4]=0x02;    //
-    bytes[5]=0x2A;    //
-    bytes[6]=0x06;    //
-    bytes[7]=0x81;    //
-
-    can->Send(0x215, (uint32_t*)bytes,8); //Send on CAN2
-    // 0x215 = {2, 45, 2, 45, 2, 42, 6, 129}
-
-    bytes[0]=0x0F;    //Static values work fine here
-    bytes[1]=0x00;    //
-    bytes[2]=0xFF;    //
-    bytes[3]=0xFF;    //
-    bytes[4]=0x00;    //
-    bytes[5]=0x00;    //
-    bytes[6]=0x00;    //
-    bytes[7]=0x00;    //
-
-    can->Send(0x231, (uint32_t*)bytes,5); //Send on CAN2
-    // 0x231 = {15,0,255,255,0}
-
-    bytes[0]=0x04;    //Static values work fine here
-    bytes[1]=0x00;    //
-    bytes[2]=0x28;    //
-    bytes[3]=0x00;    //
-    bytes[4]=0x02;    //
-    bytes[5]=0x37;    //
-    bytes[6]=0x06;    //
-    bytes[7]=0x81;    //
-
-    can->Send(0x248, (uint32_t*)bytes,8); //Send on CAN2
-    // 0x248 = {4,0,40,0,2,55,6,129}
-
-// 0x620 needed for abs light to go off, byte 6 is different on different cars, sometimes 2,3 or 4
-
-    bytes[0]=0x00;    //Static values work fine here
-    bytes[1]=0x00;    //
-    bytes[2]=0x00;    //
-    bytes[3]=0x00;    //
-    bytes[4]=0x10;    //
-    bytes[5]=0x00;    //
-    bytes[6]=0x02;    // 4?
-    bytes[7]=0x00;    //
-
-    can->Send(0x620, (uint32_t*)bytes,7); //Send on CAN2
-    // 0x620 = {0,0,0,0,16,0,4}
-
-// 0x630 needed for abs light to go off, AT/MT and Wheel Size
-
-    bytes[0]=0x08;    //Static values work fine here
-    bytes[1]=0x00;    //
-    bytes[2]=0x00;    //
-    bytes[3]=0x00;    //
-    bytes[4]=0x00;    //
-    bytes[5]=0x00;    //
-    bytes[6]=0x6A;    //
-    bytes[7]=0x6A;    //
-
-    can->Send(0x630, (uint32_t*)bytes,8); //Send on CAN2
-    // 0x620 = {8,0,0,0,0,0,106,106}
-
-    bytes[0]=0x00;    //Static values work fine here
-
-    can->Send(0x650, (uint32_t*)bytes,1); //Send on CAN2
-    // 0x650 = {0}
+    // PCM Power Control Module
+    updatePCM();
 }
 
 void MAZDA_RX8::updateMIL(){
@@ -274,8 +169,9 @@ void MAZDA_RX8::updateMIL(){
 
     //engTemp = Param::GetInt(Param::tmpm)*2+75;
     engTemp = Param::GetInt(Param::tmphs)*2+75;
-
-
+    //we're precharged if opmode is in Run or Charge.
+    bool isPrecharged = Param::GetInt(Param::opmode) == 1 || Param::GetInt(Param::opmode) == 4;
+    batChargeMIL = (isPrecharged==0) ? 1 : 0;
     bytes[0]=engTemp;       //
     bytes[1]=odo;           //
     bytes[2]=0x00;          //
@@ -328,16 +224,121 @@ void MAZDA_RX8::updateMIL(){
     }
     bytes[7]=0x00;          //
 
-    can->Send(0x420, (uint32_t*)bytes,7); //Send on CAN2
-    // 0x420 = {0, 0, 0, 0, 0, 0, 0}
+    can->Send(0x420, (uint32_t*)bytes,7);
 
 }
 
+void MAZDA_RX8::sendTractionControlMessages(){
+    /*static messages relating to traction control and ABS which are static*/
+    uint8_t bytes[8];
+    //Setup PCM Status's required to fool all other CAN devices that everything is OK, just send these out continuously
+    bytes[0]=0x13;    //Static values work fine here
+    bytes[1]=0x13;    //
+    bytes[2]=0x13;    //
+    bytes[3]=0x13;    //
+    bytes[4]=0xAF;    //
+    bytes[5]=0x03;    //
+    bytes[6]=0x13;    //
+
+    can->Send(0x203, (uint32_t*)bytes,7); //Send on CAN2
+    // 0x203 = {19,19,19,19,175,3,19}
+
+    //data to do with traction control
+    bytes[0]=0x02;    //Static values work fine here
+    bytes[1]=0x2D;    //
+    bytes[2]=0x02;    //
+    bytes[3]=0x2D;    //
+    bytes[4]=0x02;    //
+    bytes[5]=0x2A;    //
+    bytes[6]=0x06;    //
+    bytes[7]=0x81;    //
+
+    can->Send(0x215, (uint32_t*)bytes,8); //Send on CAN2
+    // 0x215 = {2, 45, 2, 45, 2, 42, 6, 129}
+
+    bytes[0]=0x0F;    //Static values work fine here
+    bytes[1]=0x00;    //
+    bytes[2]=0xFF;    //
+    bytes[3]=0xFF;    //
+    bytes[4]=0x00;    //
+    bytes[5]=0x00;    //
+    bytes[6]=0x00;    //
+    bytes[7]=0x00;    //
+
+    can->Send(0x231, (uint32_t*)bytes,5); //Send on CAN2
+    // 0x231 = {15,0,255,255,0}
+
+    bytes[0]=0x04;    //Static values work fine here
+    bytes[1]=0x00;    //
+    bytes[2]=0x28;    //
+    bytes[3]=0x00;    //
+    bytes[4]=0x02;    //
+    bytes[5]=0x37;    //
+    bytes[6]=0x06;    //
+    bytes[7]=0x81;    //
+
+    can->Send(0x248, (uint32_t*)bytes,8); //Send on CAN2
+    // 0x248 = {4,0,40,0,2,55,6,129}
+
+    // 0x620 needed for abs light to go off, byte 6 is different on different cars, sometimes 2,3 or 4
+    bytes[0]=0x00;    //Static values work fine here
+    bytes[1]=0x00;    //
+    bytes[2]=0x00;    //
+    bytes[3]=0x00;    //
+    bytes[4]=0x10;    //
+    bytes[5]=0x00;    //
+    bytes[6]=0x02;    // 4?
+    bytes[7]=0x00;    //
+
+    can->Send(0x620, (uint32_t*)bytes,7); //Send on CAN2
+    // 0x620 = {0,0,0,0,16,0,4}
+
+    // 0x630 needed for abs light to go off, AT/MT and Wheel Size
+    bytes[0]=0x08;    //Static values work fine here
+    bytes[1]=0x00;    //
+    bytes[2]=0x00;    //
+    bytes[3]=0x00;    //
+    bytes[4]=0x00;    //
+    bytes[5]=0x00;    //
+    bytes[6]=0x6A;    //
+    bytes[7]=0x6A;    //
+
+    can->Send(0x630, (uint32_t*)bytes,8); //Send on CAN2
+    // 0x620 = {8,0,0,0,0,0,106,106}
+
+    bytes[0]=0x00;    //Static values work fine here
+
+    can->Send(0x650, (uint32_t*)bytes,1); //Send on CAN2
+    // 0x650 = {0}
+}
+
 void MAZDA_RX8::updatePCM(){
+    engineRPM = Param::GetInt(Param::speed)*3.85;
+    throttlePedal = Param::GetInt(Param::potnom)*2;
+
+    float current = Param::GetFloat(Param::idc);
+    if (current < 50){
+        engineRPM = 1000;
+      }else{
+        engineRPM = current*20;
+      }
+
+    uint8_t bytes[8];
+    bytes[0]=engineRPM >> 8;
+    bytes[1]=engineRPM;
+    bytes[2]=0xFF;    //
+    bytes[3]=0xFF;    //
+    bytes[4]= vehicleSpeed >> 8; //0x13;    //Vehicle speed high byte
+    bytes[5]= vehicleSpeed;      //0x88;    //Vehicle speed low byte
+    bytes[6]= throttlePedal;    //
+    bytes[7]=0xFF;    //
+    can->Send(0x201, (uint32_t*)bytes,8); //Send on CAN2
 
 }
 
 void MAZDA_RX8::updateDSC(){
+    //*** THis is not used, unless yoou are not using the RX8 ABS / DSC system, then you can use this to turn off the ABS / DSC lights
+
     // control of ABS / DSC Lights
     uint8_t bytes[8];
 

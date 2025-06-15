@@ -21,7 +21,6 @@ public:
    bool Ready();
    bool Start();
    void Task100Ms();
-   void Task200Ms();
    void DecodeCAN(int, uint32_t* data);
    void handleImmobiliserMsg(uint32_t data[2]);
    void handleWheelSpeedMsg(uint32_t data[2]);
@@ -29,6 +28,7 @@ public:
    void updateDSC();
    void updateMIL();
    void updatePCM();
+   void sendTractionControlMessages();
 
 private:
    bool checkEngineMIL;
